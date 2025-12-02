@@ -95,7 +95,8 @@ workflow PIPELINE_INITIALISATION {
             if (fastq_2) {
                 files.add(fastq_2)
             }
-            return [meta + [data_type: "fastq"], files]
+            // Add single_end to meta based on presence of fastq_2
+            return [meta + [data_type: "fastq", single_end: !fastq_2], files]
         } else if (bam) {
             return [meta + [data_type: "bam"], [bam]]
         } else {
