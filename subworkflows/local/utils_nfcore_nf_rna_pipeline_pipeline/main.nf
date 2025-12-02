@@ -85,24 +85,27 @@ workflow PIPELINE_INITIALISATION {
     //
 
     channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-        .map {
-            meta, fastq_1, fastq_2 ->
-                if (!fastq_2) {
-                    return [ meta.id, meta + [ single_end:true ], [ fastq_1 ] ]
-                } else {
-                    return [ meta.id, meta + [ single_end:false ], [ fastq_1, fastq_2 ] ]
-                }
+    .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+    .map { meta, fastq_1, fastq_2, bam ->
+        // meta is the first element (contains sample info)
+        // fastq_1, fastq_2, bam are the subsequent columns
+        
+        if (fastq_1) {
+            def files = [fastq_1]
+            if (fastq_2) {
+                files.add(fastq_2)
+            }
+            return [meta + [data_type: "fastq"], files]
+        } else if (bam) {
+            return [meta + [data_type: "bam"], [bam]]
+        } else {
+            error("Row ${meta.id}: needs either 'fastq_1' or 'bam' column with valid file path.")
         }
-        .groupTuple()
-        .map { samplesheet ->
-            validateInputSamplesheet(samplesheet)
-        }
-        .map {
-            meta, fastqs ->
-                return [ meta, fastqs.flatten() ]
-        }
-        .set { ch_samplesheet }
+    }
+    .map { samplesheet ->
+        validateInputSamplesheet(samplesheet)
+    }
+    .set { ch_samplesheet }
 
     emit:
     samplesheet = ch_samplesheet
@@ -173,15 +176,44 @@ def validateInputParameters() {
 // Validate channels from input samplesheet
 //
 def validateInputSamplesheet(input) {
-    def (metas, fastqs) = input[1..2]
-
-    // Check that multiple runs of the same sample are of the same datatype i.e. single-end / paired-end
-    def endedness_ok = metas.collect{ meta -> meta.single_end }.unique().size == 1
-    if (!endedness_ok) {
-        error("Please check input samplesheet -> Multiple runs of a sample must be of the same datatype i.e. single-end or paired-end: ${metas[0].id}")
+    
+    def (meta, files) = input
+    
+    // Check if no meta
+    if (!meta) {
+        error("validateInputSamplesheet: Missing metadata: where is your `sample` id?.")
     }
+    if (!files || files.isEmpty()) {
+        error("validateInputSamplesheet: No files provided for sample '${meta.id}'.")
+    }
+    // Helper function to check file extension
+    def hasExtension = { file, extensions ->
+        def filename = file.toString().toLowerCase()
+        return extensions.any { ext -> filename.endsWith(ext.toLowerCase()) }
+    }
+    // Define extensions
+    def fastq_ext = [".fastq", ".fq", ".fastq.gz", ".fq.gz"]
+    def bam_ext   = [".bam", ".cram"]
 
-    return [ metas[0], fastqs ]
+    def isFastq = files.every { f -> hasExtension(f, fastq_ext) }
+    def isBam   = files.every { f -> hasExtension(f, bam_ext) }
+
+    if (!isFastq && !isBam) {
+        def fileNames = files.collect { it.toString() }
+        error("validateInputSamplesheet: Files for sample '${meta.id}' must all be FASTQ(.gz) or BAM/CRAM, but got: ${fileNames.join(', ')}")
+    }
+    // Enforce FASTQ rules 
+    if (isFastq) {
+        if (!(files.size() in [1,2])) {
+            error("validateInputSamplesheet: FASTQ input for sample '${meta.id}' must contain 1 (SE) or 2 (PE) files, got ${files.size()}.")
+        }
+    } 
+    // BAM/CRAM must be a single file 
+    if (isBam && files.size() != 1) {
+        error("validateInputSamplesheet: BAM/CRAM input for sample '${meta.id}' must contain exactly one file.")
+    }
+    
+    return [ meta, files ]
 }
 //
 // Get attribute from genome config file e.g. fasta

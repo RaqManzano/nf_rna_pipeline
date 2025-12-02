@@ -47,35 +47,74 @@ workflow NF_RNA_PIPELINE {
     // PARSE INPUT: Parse samplesheet to separate FASTQ and BAM inputs
     //
     ch_samplesheet
-        .branch { meta, fastq1, fastq2, bam ->
-            fastq: fastq1 && fastq1 != ""
-                return [ meta, fastq2 && fastq2 != "" ? [fastq1, fastq2] : [fastq1] ]
-            bam: bam && bam != ""
-                return [ meta, bam ]
+        .branch { meta, fastq_bam ->
+            fastq: meta.data_type == "fastq"
+            bam: meta.data_type == "bam"
         }
         .set { ch_input }
+
+    //
+    // REFERENCE MANAGEMENT
+    //
+    if (params.fasta) {
+        ch_fasta = Channel.fromPath(params.fasta).map { [ [:], it ] }
+        
+        // Check if .fai exists, generate if not
+        def fai_path = params.fasta + '.fai'
+        if (file(fai_path).exists()) {
+            ch_fai = Channel.fromPath(fai_path).map { [ [:], it ] }
+        } else {
+            log.info "FASTA index (.fai) not found, generating from reference genome"
+            SAMTOOLS_FAIDX(ch_fasta)
+            ch_fai = SAMTOOLS_FAIDX.out.fai
+            ch_versions = ch_versions.mix(SAMTOOLS_FAIDX.out.versions.first())
+        }
+        
+        // Check if .dict exists, generate if not
+        def dict_path = params.fasta.replaceAll(/\.fa(sta)?$/, '.dict')
+        if (file(dict_path).exists()) {
+            ch_dict = Channel.fromPath(dict_path).map { [ [:], it ] }
+        } else {
+            log.info "Sequence dictionary (.dict) not found, generating from reference genome"
+            GATK4_CREATESEQUENCEDICTIONARY(ch_fasta)
+            ch_dict = GATK4_CREATESEQUENCEDICTIONARY.out.dict
+            ch_versions = ch_versions.mix(GATK4_CREATESEQUENCEDICTIONARY.out.versions.first())
+        }
+    }
     
     //
     // ALIGNMENT (if FQs provided as input)
     //
-    // STAR inputs
-    ch_star_index = Channel.fromPath(params.star_index).map { [ [:], it ] }
-    ch_gtf        = Channel.fromPath(params.gtf).map { [ [:], it ] }
-    
+    // STAR index
+    ch_gtf = Channel.fromPath(params.gtf).map { [ [:], it ] }
+    if (!params.star_index && params.fasta && params.gtf) {
+        ch_fasta = Channel.fromPath(params.fasta).map { [ [:], it ] }
+        
+        STAR_GENOMEGENERATE(
+            ch_fasta,
+            ch_gtf
+        )
+        
+        ch_star_index = STAR_GENOMEGENERATE.out.index
+        ch_versions = ch_versions.mix(STAR_GENOMEGENERATE.out.versions.first())
+    } else if (params.star_index) {
+        ch_star_index = Channel.fromPath(params.star_index).map { [ [:], it ] }
+    }
+
     STAR_ALIGN(
         ch_input.fastq,                      // tuple val(meta), path(reads)
         ch_star_index,                       // tuple val(meta2), path(index)
         ch_gtf,                              // tuple val(meta3), path(gtf)
-        params.star_ignore_sjdbgtf?: false,  // val star_ignore_sjdbgtf
-        params.seq_platform ?: '',           // val seq_platform
-        params.seq_center ?: ''              // val seq_center
+        params.salmon_star_ignore_sjdbgtf,  // val star_ignore_sjdbgtf
+        params.salmon_seq_platform ?: '',           // val seq_platform
+        params.salmon_seq_center ?: ''              // val seq_center
     )
     
     ch_aligned_bam = STAR_ALIGN.out.bam
     ch_versions = ch_versions.mix(STAR_ALIGN.out.versions.first())
     
     // Combine BAMs in case fq and bams provided as input
-    ch_all_bams = ch_aligned_bam.mix(ch_input.bam)
+    ch_all_bams = Channel.empty().mix(ch_aligned_bam.mix(ch_input.bam))
 
     //
     // QUANTIFICATION with salmon
@@ -84,7 +123,7 @@ workflow NF_RNA_PIPELINE {
     ch_salmon_index = Channel.empty()
     if (params.transcriptome && !params.salmon_index) {
         ch_transcriptome = Channel.fromPath(params.transcriptome)
-        SALMON_INDEX(ch_transcriptome)
+        SALMON_INDEX(ch_fasta.map{meta,fa -> [fa]}, ch_transcriptome)
         ch_salmon_index = SALMON_INDEX.out.index
         ch_versions = ch_versions.mix(SALMON_INDEX.out.versions.first())
     } else if (params.salmon_index) {
@@ -94,7 +133,7 @@ workflow NF_RNA_PIPELINE {
     ch_transcript_fasta = params.transcriptome ? 
         Channel.fromPath(params.transcriptome) : Channel.empty()
 
-    if (params.quant_mode.contains('alignment') && ch_all_bams) {
+    if (params.salmon_quant_mode.contains('alignment') && ch_all_bams) {
         // Alignment mode with BAM files
         SALMON_QUANT(
             ch_all_bams.map { meta, bam -> [ meta, [bam] ] }, // tuple val(meta), path(reads)
@@ -121,10 +160,6 @@ workflow NF_RNA_PIPELINE {
     //
     // GENOTYPING with GATK's HaplotypeCaller
     //
-    // Prepare reference channels
-    ch_fasta = Channel.fromPath(params.fasta).map { [ [:], it ] }
-    ch_fai   = Channel.fromPath(params.fasta_fai).map { [ [:], it ] }
-    ch_dict  = Channel.fromPath(params.dict).map { [ [:], it ] }
 
     // Prepare input for GATK4_HAPLOTYPECALLER
     ch_bam_for_hc = ch_all_bams.map { meta, bam ->
