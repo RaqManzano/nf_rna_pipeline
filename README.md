@@ -124,6 +124,18 @@ executor { // these parameters avoid overcalling the scheduler
 }
 ```
 
+### Usage in an HPC environment
+
+It is highly recommended to run the pipeline in a terminal multiplexer such as `[screen](https://www.geeksforgeeks.org/linux-unix/screen-command-in-linux-with-examples/)` or `[tmux](https://github.com/tmux/tmux/wiki)`. A terminal multiplexer lets you open “virtual terminals” that continue running in the background, allowing processes to persist even if you close your window or disconnect from the HPC (think about it as a terminal window manager). This is important as the nextflow run by default needs to keep running to check jobs.  By default `screen` is likely to be installed already in your environment.
+
+To start a new session you can use the following commands:
+```
+# screen command:
+screen -S demo
+# tmux command:
+tmux new -s demo
+```
+
 #### Tools config
 A set of default config for STAR, salmon and HaplotypeCaller can be found in [config](conf/modules.config). For more information on the parameters of each tool please go to their docs.
 
