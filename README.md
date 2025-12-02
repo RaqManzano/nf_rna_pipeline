@@ -22,7 +22,6 @@
 4. Genotyping with HaplotypeCaller
 5. [`MultiQC`](http://multiqc.info/)
 
-
 # Before you start
 
 ## Management of input/output files
@@ -50,13 +49,12 @@ mv SLX1234 raw
 
 This will download fastq files in a compressed format (“`fq.gz`”), quality control HTML reports which you can take a look at and csv file with sample information used for the sequencing (can be used as metadata).
 
-
 ## Usage
 
 > [!NOTE]
 > If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/usage/installation) on how to set-up Nextflow. Make sure to [test your setup](https://nf-co.re/docs/usage/introduction#how-to-run-a-pipeline) with `-profile test` before running the workflow on actual data.
 
-### Generate samplesheet 
+### Generate samplesheet
 
 The sample sheet should look like this:
 
@@ -71,7 +69,6 @@ or
 sample,bam
 CONTROL_REP1,AEG588A1_S1_L002_R1_001.bam
 ```
-
 
 To generate a samplesheet from a list of fq.files specific for CRUK CI clarity-tools download:
 
@@ -95,6 +92,7 @@ fasta: '/path/to/genome.fa'
 ### Config
 
 #### Env config
+
 Please set up the config of your environment. For example, if you are running the pipeline in an HPC environment create a `hpc.config`:
 
 ```
@@ -126,9 +124,10 @@ executor { // these parameters avoid overcalling the scheduler
 
 ### Usage in an HPC environment
 
-It is highly recommended to run the pipeline in a terminal multiplexer such as `[screen](https://www.geeksforgeeks.org/linux-unix/screen-command-in-linux-with-examples/)` or `[tmux](https://github.com/tmux/tmux/wiki)`. A terminal multiplexer lets you open “virtual terminals” that continue running in the background, allowing processes to persist even if you close your window or disconnect from the HPC (think about it as a terminal window manager). This is important as the nextflow run by default needs to keep running to check jobs.  By default `screen` is likely to be installed already in your environment.
+It is highly recommended to run the pipeline in a terminal multiplexer such as `[screen](https://www.geeksforgeeks.org/linux-unix/screen-command-in-linux-with-examples/)` or `[tmux](https://github.com/tmux/tmux/wiki)`. A terminal multiplexer lets you open “virtual terminals” that continue running in the background, allowing processes to persist even if you close your window or disconnect from the HPC (think about it as a terminal window manager). This is important as the nextflow run by default needs to keep running to check jobs. By default `screen` is likely to be installed already in your environment.
 
 To start a new session you can use the following commands:
+
 ```
 # screen command:
 screen -S demo
@@ -137,10 +136,10 @@ tmux new -s demo
 ```
 
 #### Tools config
+
 A set of default config for STAR, salmon and HaplotypeCaller can be found in [config](conf/modules.config). For more information on the parameters of each tool please go to their docs.
 
 ## Basic command
-
 
 ```bash
 nextflow run RaqManzano/nf_rna_pipeline \
@@ -155,7 +154,6 @@ nextflow run RaqManzano/nf_rna_pipeline \
 ## Credits
 
 RaqManzano/nf_rna_pipeline was originally written by Raquel Manzano.
-
 
 ## Contributions and Support
 

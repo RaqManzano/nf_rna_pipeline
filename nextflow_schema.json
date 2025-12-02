@@ -100,7 +100,7 @@
                     "fa_icon": "fas fa-ruler-horizontal"
                 },
                 "transcriptome": {
-                    "type": "string", 
+                    "type": "string",
                     "format": "file-path",
                     "description": "Path to transcriptome FASTA file",
                     "help_text": "FASTA file containing transcript sequences for Salmon quantification. This file is used to build the Salmon index if a pre-built index is not provided via --salmon_index. Should contain all transcript sequences from the reference annotation.",

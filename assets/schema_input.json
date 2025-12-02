@@ -29,14 +29,11 @@
             },
             "bam": {
                 "type": "string",
-                "format": "file-path", 
+                "format": "file-path",
                 "exists": true
             }
         },
         "required": ["sample"],
-        "anyOf": [
-            {"required": ["fastq_1"]},
-            {"required": ["bam"]}
-        ]
+        "anyOf": [{ "required": ["fastq_1"] }, { "required": ["bam"] }]
     }
 }
