@@ -101,6 +101,12 @@ workflow NF_RNA_PIPELINE {
         ch_star_index = Channel.fromPath(params.star_index).map { [ [:], it ] }
     }
 
+    ch_input.fastq
+        .view { meta, reads -> 
+            "DEBUG STAR input: sample=${meta.id}, single_end=${meta.single_end}, reads=${reads}" 
+        }
+        .set { ch_fastq_for_star }
+
     STAR_ALIGN(
         ch_input.fastq,                      // tuple val(meta), path(reads)
         ch_star_index,                       // tuple val(meta2), path(index)
