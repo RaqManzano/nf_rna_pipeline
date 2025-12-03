@@ -103,7 +103,7 @@ workflow NF_RNA_PIPELINE {
 
     ch_input.fastq
         .view { meta, reads -> 
-            # "DEBUG STAR input: sample=${meta.id}, single_end=${meta.single_end}, reads=${reads}" 
+            // "DEBUG STAR input: sample=${meta.id}, single_end=${meta.single_end}, reads=${reads}" 
         }
         .set { ch_fastq_for_star }
 
