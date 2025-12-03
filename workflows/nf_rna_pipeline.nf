@@ -52,6 +52,37 @@ workflow NF_RNA_PIPELINE {
             bam: meta.data_type == "bam"
         }
         .set { ch_input }
+    
+    //
+    // VALIDATE BAM INPUT
+    //
+    ch_input.bam
+        .count()
+        .subscribe { count ->
+            if (count > 0) {
+                if (!params.bam_type) {
+                    error "BAM input detected but --bam_type not specified. Please use --bam_type 'genome' or --bam_type 'transcriptome'"
+                }
+                if (!['genome', 'transcriptome'].contains(params.bam_type)) {
+                    error "Invalid --bam_type '${params.bam_type}'. Must be 'genome' or 'transcriptome'"
+                }
+                if (params.bam_type == 'genome') {
+                    log.info "BAM input with --bam_type 'genome': Will run variant calling, skipping Salmon quantification"
+                } else {
+                    log.info "BAM input with --bam_type 'transcriptome': Will run Salmon quantification, skipping variant calling"
+                }
+            }
+        }
+
+    //
+    // ROUTE BAM INPUT BASED ON TYPE
+    //
+    ch_input.bam
+        .branch { meta, bam ->
+            genome: params.bam_type == 'genome'
+            transcriptome: params.bam_type == 'transcriptome'
+        }
+        .set { ch_bam_typed }
 
     //
     // REFERENCE MANAGEMENT
@@ -116,11 +147,16 @@ workflow NF_RNA_PIPELINE {
         params.salmon_seq_center ?: ''              // val seq_center
     )
     
-    ch_aligned_bam = STAR_ALIGN.out.bam_sorted_aligned
     ch_versions = ch_versions.mix(STAR_ALIGN.out.versions.first())
-    
-    // Combine BAMs in case fq and bams provided as input
-    ch_all_bams = Channel.empty().mix(ch_aligned_bam.mix(ch_input.bam))
+
+    // Transcriptome BAMs: STAR output + user-provided transcriptome BAMs
+    ch_transcriptome_bam = STAR_ALIGN.out.bam_transcript
+        .mix(ch_bam_typed.transcriptome)
+
+    // Genome BAMs: STAR output + user-provided genome BAMs
+    ch_genome_bam = STAR_ALIGN.out.bam_sorted_aligned
+        .mix(ch_bam_typed.genome)
+
 
     //
     // QUANTIFICATION with salmon
@@ -139,10 +175,10 @@ workflow NF_RNA_PIPELINE {
     ch_transcript_fasta = params.transcriptome ? 
         Channel.fromPath(params.transcriptome) : Channel.empty()
 
-    if (params.salmon_quant_mode.contains('alignment') && ch_all_bams) {
+    if (params.salmon_quant_mode.contains('alignment') && ch_transcriptome_bam) {
         // Alignment mode with BAM files
         SALMON_QUANT(
-            ch_all_bams.map { meta, bam -> [ meta, [bam] ] }, // tuple val(meta), path(reads)
+            ch_transcriptome_bam.map { meta, bam -> [ meta, [bam] ] }, // tuple val(meta), path(reads)
             ch_salmon_index,                                   // path index
             ch_gtf.map { meta, gtf -> gtf },                  // path gtf
             ch_transcript_fasta,                              // path transcript_fasta
@@ -168,7 +204,7 @@ workflow NF_RNA_PIPELINE {
     //
 
     // Prepare input for GATK4_HAPLOTYPECALLER
-    ch_bam_for_hc = ch_all_bams.map { meta, bam ->
+    ch_bam_for_hc = ch_genome_bam.map { meta, bam ->
         // nf-core module expects: tuple val(meta), path(input), path(input_index), path(intervals), path(dragstr_model)
         [ meta, bam, [], [], [] ]
     }
