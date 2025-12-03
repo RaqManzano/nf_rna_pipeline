@@ -92,6 +92,7 @@ workflow PIPELINE_INITIALISATION {
         
         if (fastq_1) {
             def files = [fastq_1]
+            def is_single = !fastq_2
             if (fastq_2) {
                 files.add(fastq_2)
             }
