@@ -103,7 +103,7 @@ workflow NF_RNA_PIPELINE {
 
     ch_input.fastq
         .view { meta, reads -> 
-            "DEBUG STAR input: sample=${meta.id}, single_end=${meta.single_end}, reads=${reads}" 
+            # "DEBUG STAR input: sample=${meta.id}, single_end=${meta.single_end}, reads=${reads}" 
         }
         .set { ch_fastq_for_star }
 
@@ -116,7 +116,7 @@ workflow NF_RNA_PIPELINE {
         params.salmon_seq_center ?: ''              // val seq_center
     )
     
-    ch_aligned_bam = STAR_ALIGN.out.bam
+    ch_aligned_bam = STAR_ALIGN.out.bam_sorted_aligned
     ch_versions = ch_versions.mix(STAR_ALIGN.out.versions.first())
     
     // Combine BAMs in case fq and bams provided as input
