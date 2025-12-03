@@ -144,7 +144,7 @@ workflow NF_RNA_PIPELINE {
         SALMON_QUANT(
             ch_all_bams.map { meta, bam -> [ meta, [bam] ] }, // tuple val(meta), path(reads)
             ch_salmon_index,                                   // path index
-            ch_gtf,                                           // path gtf
+            ch_gtf.map { meta, gtf -> gtf },                  // path gtf
             ch_transcript_fasta,                              // path transcript_fasta
             true,                                             // val alignment_mode
             'A'                                               // val lib_type
@@ -152,12 +152,12 @@ workflow NF_RNA_PIPELINE {
     } else {
         // Mapping mode with FASTQ files
         SALMON_QUANT(
-            ch_input.fastq,              // tuple val(meta), path(reads)
-            ch_salmon_index,             // path index
-            ch_gtf,                      // path gtf
-            ch_transcript_fasta,         // path transcript_fasta
-            false,                       // val alignment_mode
-            'A'                          // val lib_type
+            ch_input.fastq,                              // tuple val(meta), path(reads)
+            ch_salmon_index,                             // path index
+            ch_gtf.map { meta, gtf -> gtf },             // path gtf
+            ch_transcript_fasta,                         // path transcript_fasta
+            false,                                       // val alignment_mode
+            'A'                                          // val lib_type
         )
     }
     ch_versions = ch_versions.mix(SALMON_QUANT.out.versions.first())
