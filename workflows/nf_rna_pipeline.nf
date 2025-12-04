@@ -119,6 +119,10 @@ workflow NF_RNA_PIPELINE {
     //
     // REFERENCE MANAGEMENT
     //
+
+    // Compute reference directory
+    def reference_dir = params.reference_dir ?: (params.fasta ? file(params.fasta).parent : "${params.outdir}/references")
+    
     if (params.fasta) {
         ch_fasta = Channel.fromPath(params.fasta).map { [ [:], it ] }.first()
         
