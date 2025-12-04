@@ -54,6 +54,36 @@ workflow NF_RNA_PIPELINE {
         .set { ch_input }
     
     //
+// GROUP FASTQ FILES BY SAMPLE ID (handles multi-lane samples)
+//
+ch_input.fastq
+    .map { meta, reads ->
+        def group_key = meta.id
+        [ group_key, meta, reads ]
+    }
+    .groupTuple(by: 0)
+    .map { group_key, metas, reads_list ->
+        // Validate consistency across lanes
+        def single_end_values = metas.collect { it.single_end }.unique()
+        if (single_end_values.size() > 1) {
+            error("Sample '${group_key}' has inconsistent single_end values across lanes. All lanes must be either single-end or paired-end.")
+        }
+        
+        def meta = metas[0]
+        def all_reads = reads_list.flatten()
+        
+        if (!meta.single_end) {
+            all_reads = all_reads.sort { it.name }
+        }
+        
+        log.info "Sample '${meta.id}': merged ${metas.size()} lane(s), ${all_reads.size()} file(s)"
+        
+        [ meta, all_reads ]
+    }
+    .set { ch_fastq_grouped }
+
+
+    //
     // VALIDATE BAM INPUT
     //
     ch_input.bam
@@ -139,7 +169,7 @@ workflow NF_RNA_PIPELINE {
         .set { ch_fastq_for_star }
 
     STAR_ALIGN(
-        ch_input.fastq,                      // tuple val(meta), path(reads)
+        ch_fastq_grouped,                      // tuple val(meta), path(reads)
         ch_star_index,                       // tuple val(meta2), path(index)
         ch_gtf,                              // tuple val(meta3), path(gtf)
         params.salmon_star_ignore_sjdbgtf,  // val star_ignore_sjdbgtf
@@ -188,7 +218,7 @@ workflow NF_RNA_PIPELINE {
     } else {
         // Mapping mode with FASTQ files
         SALMON_QUANT(
-            ch_input.fastq,                              // tuple val(meta), path(reads)
+            ch_fastq_grouped,                              // tuple val(meta), path(reads)
             ch_salmon_index,                             // path index
             ch_gtf.map { meta, gtf -> gtf },             // path gtf
             ch_transcript_fasta,                         // path transcript_fasta

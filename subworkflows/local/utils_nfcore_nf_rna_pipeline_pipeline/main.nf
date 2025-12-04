@@ -205,12 +205,12 @@ def validateInputSamplesheet(input) {
         def fileNames = files.collect { it.toString() }
         error("validateInputSamplesheet: Files for sample '${meta.id}' must all be FASTQ(.gz) or BAM/CRAM, but got: ${fileNames.join(', ')}")
     }
-    // Enforce FASTQ rules 
+    // FASTQ: allow 1 (SE) or 2 (PE) files per ROW (lanes will be merged later)
     if (isFastq) {
         if (!(files.size() in [1,2])) {
-            error("validateInputSamplesheet: FASTQ input for sample '${meta.id}' must contain 1 (SE) or 2 (PE) files, got ${files.size()}.")
+            error("validateInputSamplesheet: FASTQ input for sample '${meta.id}' must contain 1 (SE) or 2 (PE) files per row, got ${files.size()}.")
         }
-    } 
+    }
     // BAM/CRAM must be a single file 
     if (isBam && files.size() != 1) {
         error("validateInputSamplesheet: BAM/CRAM input for sample '${meta.id}' must contain exactly one file.")
