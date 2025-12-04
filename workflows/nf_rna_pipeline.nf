@@ -6,7 +6,7 @@
 // base
 include { FASTQC                } from '../modules/nf-core/fastqc/main'
 include { MULTIQC               } from '../modules/nf-core/multiqc/main'
-// alignmen
+// alignment
 include { STAR_GENOMEGENERATE   } from '../modules/nf-core/star/genomegenerate/main'
 include { STAR_ALIGN            } from '../modules/nf-core/star/align/main'
 // quantification
@@ -88,27 +88,27 @@ workflow NF_RNA_PIPELINE {
     // REFERENCE MANAGEMENT
     //
     if (params.fasta) {
-        ch_fasta = Channel.fromPath(params.fasta).map { [ [:], it ] }
+        ch_fasta = Channel.fromPath(params.fasta).map { [ [:], it ] }.first()
         
         // Check if .fai exists, generate if not
         def fai_path = params.fasta + '.fai'
         if (file(fai_path).exists()) {
-            ch_fai = Channel.fromPath(fai_path).map { [ [:], it ] }
+            ch_fai = Channel.fromPath(fai_path).map { [ [:], it ] }.first()
         } else {
             log.info "FASTA index (.fai) not found, generating from reference genome"
             SAMTOOLS_FAIDX(ch_fasta)
-            ch_fai = SAMTOOLS_FAIDX.out.fai
+            ch_fai = SAMTOOLS_FAIDX.out.fai.first()
             ch_versions = ch_versions.mix(SAMTOOLS_FAIDX.out.versions.first())
         }
         
         // Check if .dict exists, generate if not
         def dict_path = params.fasta.replaceAll(/\.fa(sta)?$/, '.dict')
         if (file(dict_path).exists()) {
-            ch_dict = Channel.fromPath(dict_path).map { [ [:], it ] }
+            ch_dict = Channel.fromPath(dict_path).map { [ [:], it ] }.first()
         } else {
             log.info "Sequence dictionary (.dict) not found, generating from reference genome"
             GATK4_CREATESEQUENCEDICTIONARY(ch_fasta)
-            ch_dict = GATK4_CREATESEQUENCEDICTIONARY.out.dict
+            ch_dict = GATK4_CREATESEQUENCEDICTIONARY.out.dict.first()
             ch_versions = ch_versions.mix(GATK4_CREATESEQUENCEDICTIONARY.out.versions.first())
         }
     }
@@ -117,19 +117,19 @@ workflow NF_RNA_PIPELINE {
     // ALIGNMENT (if FQs provided as input)
     //
     // STAR index
-    ch_gtf = Channel.fromPath(params.gtf).map { [ [:], it ] }
+    ch_gtf = Channel.fromPath(params.gtf).map { [ [:], it ] }.first()
     if (!params.star_index && params.fasta && params.gtf) {
-        ch_fasta = Channel.fromPath(params.fasta).map { [ [:], it ] }
+        ch_fasta = Channel.fromPath(params.fasta).map { [ [:], it ] }.first()
         
         STAR_GENOMEGENERATE(
             ch_fasta,
             ch_gtf
         )
         
-        ch_star_index = STAR_GENOMEGENERATE.out.index
+        ch_star_index = STAR_GENOMEGENERATE.out.index.first()
         ch_versions = ch_versions.mix(STAR_GENOMEGENERATE.out.versions.first())
     } else if (params.star_index) {
-        ch_star_index = Channel.fromPath(params.star_index).map { [ [:], it ] }
+        ch_star_index = Channel.fromPath(params.star_index).map { [ [:], it ] }.first()
     }
 
     ch_input.fastq
@@ -166,14 +166,14 @@ workflow NF_RNA_PIPELINE {
     if (params.transcriptome && !params.salmon_index) {
         ch_transcriptome = Channel.fromPath(params.transcriptome)
         SALMON_INDEX(ch_fasta.map{meta,fa -> [fa]}, ch_transcriptome)
-        ch_salmon_index = SALMON_INDEX.out.index
+        ch_salmon_index = SALMON_INDEX.out.index.first()
         ch_versions = ch_versions.mix(SALMON_INDEX.out.versions.first())
     } else if (params.salmon_index) {
-        ch_salmon_index = Channel.fromPath(params.salmon_index)
+        ch_salmon_index = Channel.fromPath(params.salmon_index).first()
     }
 
     ch_transcript_fasta = params.transcriptome ? 
-        Channel.fromPath(params.transcriptome) : Channel.empty()
+        Channel.fromPath(params.transcriptome).first() : Channel.empty()
 
     if (params.salmon_quant_mode.contains('alignment') && ch_transcriptome_bam) {
         // Alignment mode with BAM files
