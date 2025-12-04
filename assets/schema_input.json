@@ -31,6 +31,18 @@
                 "type": "string",
                 "format": "file-path",
                 "exists": true
+            },
+            "fldMean": {
+                "type": "number",
+                "minimum": 0,
+                "errorMessage": "fldMean must be a positive number representing the mean fragment length for single-end reads",
+                "meta": ["fldMean"]
+            },
+            "fldSD": {
+                "type": "number",
+                "minimum": 0,
+                "errorMessage": "fldSD must be a positive number representing the standard deviation of fragment length for single-end reads",
+                "meta": ["fldSD"]
             }
         },
         "required": ["sample"],
