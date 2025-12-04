@@ -84,7 +84,7 @@ workflow PIPELINE_INITIALISATION {
     // Create channel from input file provided through params.input
     //
 
-channel
+    channel
     .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
     .map { meta, fastq_1, fastq_2, bam ->
         // meta is the first element (contains sample info including fldMean and fldSD if provided)

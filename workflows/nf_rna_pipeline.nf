@@ -19,6 +19,7 @@ include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_nf_rna_pipeline_pipeline'
+include { SAMTOOLS_FAIDX         } from '../modules/nf-core/samtools/faidx/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -54,33 +55,33 @@ workflow NF_RNA_PIPELINE {
         .set { ch_input }
     
     //
-// GROUP FASTQ FILES BY SAMPLE ID (handles multi-lane samples)
-//
-ch_input.fastq
-    .map { meta, reads ->
-        def group_key = meta.id
-        [ group_key, meta, reads ]
-    }
-    .groupTuple(by: 0)
-    .map { group_key, metas, reads_list ->
-        // Validate consistency across lanes
-        def single_end_values = metas.collect { it.single_end }.unique()
-        if (single_end_values.size() > 1) {
-            error("Sample '${group_key}' has inconsistent single_end values across lanes. All lanes must be either single-end or paired-end.")
+    // GROUP FASTQ FILES BY SAMPLE ID (handles multi-lane samples)
+    //
+    ch_input.fastq
+        .map { meta, reads ->
+            def group_key = meta.id
+            [ group_key, meta, reads ]
         }
-        
-        def meta = metas[0]
-        def all_reads = reads_list.flatten()
-        
-        if (!meta.single_end) {
-            all_reads = all_reads.sort { it.name }
+        .groupTuple(by: 0)
+        .map { group_key, metas, reads_list ->
+            // Validate consistency across lanes
+            def single_end_values = metas.collect { it.single_end }.unique()
+            if (single_end_values.size() > 1) {
+                error("Sample '${group_key}' has inconsistent single_end values across lanes. All lanes must be either single-end or paired-end.")
+            }
+            
+            def meta = metas[0]
+            def all_reads = reads_list.flatten()
+            
+            if (!meta.single_end) {
+                all_reads = all_reads.sort { it.name }
+            }
+            
+            log.info "Sample '${meta.id}': merged ${metas.size()} lane(s), ${all_reads.size()} file(s)"
+            
+            [ meta, all_reads ]
         }
-        
-        log.info "Sample '${meta.id}': merged ${metas.size()} lane(s), ${all_reads.size()} file(s)"
-        
-        [ meta, all_reads ]
-    }
-    .set { ch_fastq_grouped }
+        .set { ch_fastq_grouped }
 
 
     //
