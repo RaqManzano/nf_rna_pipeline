@@ -13,7 +13,8 @@ include { STAR_ALIGN            } from '../modules/nf-core/star/align/main'
 include { SALMON_INDEX          } from '../modules/nf-core/salmon/index/main'
 include { SALMON_QUANT          } from '../modules/nf-core/salmon/quant/main'
 // genotyping
-include { GATK4_HAPLOTYPECALLER } from '../modules/nf-core/gatk4/haplotypecaller/main'
+include { GATK4_CREATESEQUENCEDICTIONARY } from '../modules/nf-core/gatk4/createsequencedictionary/main' 
+include { GATK4_HAPLOTYPECALLER          } from '../modules/nf-core/gatk4/haplotypecaller/main'
 // utils
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -127,7 +128,7 @@ workflow NF_RNA_PIPELINE {
             ch_fai = Channel.fromPath(fai_path).map { [ [:], it ] }.first()
         } else {
             log.info "FASTA index (.fai) not found, generating from reference genome"
-            SAMTOOLS_FAIDX(
+                SAMTOOLS_FAIDX(
                 ch_fasta,           // tuple val(meta), path(fasta)
                 [[],[]],            // tuple val(meta2), path(fai) - empty since we're generating it
                 false               // val get_sizes - set to false (we just want the .fai file)
@@ -147,7 +148,7 @@ workflow NF_RNA_PIPELINE {
             ch_versions = ch_versions.mix(GATK4_CREATESEQUENCEDICTIONARY.out.versions.first())
         }
     }
-    
+
     //
     // ALIGNMENT (if FQs provided as input)
     //
