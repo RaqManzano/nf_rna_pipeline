@@ -127,7 +127,11 @@ workflow NF_RNA_PIPELINE {
             ch_fai = Channel.fromPath(fai_path).map { [ [:], it ] }.first()
         } else {
             log.info "FASTA index (.fai) not found, generating from reference genome"
-            SAMTOOLS_FAIDX(ch_fasta)
+            SAMTOOLS_FAIDX(
+                ch_fasta,           // tuple val(meta), path(fasta)
+                [[],[]],            // tuple val(meta2), path(fai) - empty since we're generating it
+                false               // val get_sizes - set to false (we just want the .fai file)
+            )
             ch_fai = SAMTOOLS_FAIDX.out.fai.first()
             ch_versions = ch_versions.mix(SAMTOOLS_FAIDX.out.versions.first())
         }
