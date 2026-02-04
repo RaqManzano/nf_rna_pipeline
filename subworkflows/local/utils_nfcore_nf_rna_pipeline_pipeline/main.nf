@@ -87,15 +87,33 @@ workflow PIPELINE_INITIALISATION {
     channel
     .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
     .map { meta, fastq_1, fastq_2, bam ->
-        // meta is the first element (contains sample info)
+        // meta is the first element (contains sample info including fldMean and fldSD if provided)
         // fastq_1, fastq_2, bam are the subsequent columns
         
         if (fastq_1) {
             def files = [fastq_1]
+            def is_single = !fastq_2
             if (fastq_2) {
                 files.add(fastq_2)
             }
-            return [meta + [data_type: "fastq"], files]
+            def new_meta = meta + [data_type: "fastq", single_end: is_single]
+            
+            // Validate fldMean and fldSD for single-end samples
+            if (is_single) {
+                if ((meta.fldMean && !meta.fldSD) || (!meta.fldMean && meta.fldSD)) {
+                    error("Sample '${meta.id}': Both fldMean and fldSD must be provided together for single-end samples, or neither.")
+                }
+                if (meta.fldMean && meta.fldSD) {
+                    log.info("Sample '${meta.id}': Using fldMean=${meta.fldMean}, fldSD=${meta.fldSD} for Salmon quantification")
+                }
+            } else {
+                // Warn if fldMean/fldSD provided for paired-end (will be ignored)
+                if (meta.fldMean || meta.fldSD) {
+                    log.warn("Sample '${meta.id}': fldMean and fldSD are ignored for paired-end samples (fragment length is estimated from read pairs).")
+                }
+            }
+            
+            return [new_meta, files]
         } else if (bam) {
             return [meta + [data_type: "bam"], [bam]]
         } else {
@@ -202,12 +220,12 @@ def validateInputSamplesheet(input) {
         def fileNames = files.collect { it.toString() }
         error("validateInputSamplesheet: Files for sample '${meta.id}' must all be FASTQ(.gz) or BAM/CRAM, but got: ${fileNames.join(', ')}")
     }
-    // Enforce FASTQ rules 
+    // FASTQ: allow 1 (SE) or 2 (PE) files per ROW (lanes will be merged later)
     if (isFastq) {
         if (!(files.size() in [1,2])) {
-            error("validateInputSamplesheet: FASTQ input for sample '${meta.id}' must contain 1 (SE) or 2 (PE) files, got ${files.size()}.")
+            error("validateInputSamplesheet: FASTQ input for sample '${meta.id}' must contain 1 (SE) or 2 (PE) files per row, got ${files.size()}.")
         }
-    } 
+    }
     // BAM/CRAM must be a single file 
     if (isBam && files.size() != 1) {
         error("validateInputSamplesheet: BAM/CRAM input for sample '${meta.id}' must contain exactly one file.")
